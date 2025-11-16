@@ -1,7 +1,7 @@
 {
   description = "Dev flake for haskell";
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs/a2eb207f45e4a14a1e3019d9e3863d1e208e2295";
   };
   outputs = {nixpkgs, ...}: let
     supportedSystems = ["x86_64-linux" "aarch64-darwin"];
@@ -13,7 +13,7 @@
   in {
     devShells = forEachSupportedSystem ({pkgs}: {
       default = pkgs.mkShell {
-        buildInputs = [pkgs.ghc pkgs.haskell-language-server];
+        packages = [pkgs.clang_21 (pkgs.haskellPackages.ghcWithPackages (hp: with hp;[ haskell-language-server stack ghc]))];
       };
     });
   };
