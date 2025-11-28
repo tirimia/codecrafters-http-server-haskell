@@ -9,3 +9,5 @@ resolver: lts-23.18
 
 packages:
   - .
+system-ghc: true
+install-ghc: false

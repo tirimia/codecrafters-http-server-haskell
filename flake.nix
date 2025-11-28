@@ -1,20 +1,24 @@
 {
-  description = "Dev flake for haskell";
-  inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/a2eb207f45e4a14a1e3019d9e3863d1e208e2295";
-  };
-  outputs = {nixpkgs, ...}: let
-    supportedSystems = ["x86_64-linux" "aarch64-darwin"];
-    forEachSupportedSystem = f:
-      nixpkgs.lib.genAttrs supportedSystems (system:
-        f {
-          pkgs = import nixpkgs {inherit system;};
-        });
-  in {
-    devShells = forEachSupportedSystem ({pkgs}: {
-      default = pkgs.mkShell {
-        packages = [pkgs.clang_21 (pkgs.haskellPackages.ghcWithPackages (hp: with hp;[ haskell-language-server stack ghc]))];
-      };
-    });
-  };
+  description = "HTTP Server Haskell Dev Environment";
+
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
+
+  outputs = { self, nixpkgs }:
+    let
+      mkShell = system:
+        let
+          pkgs = nixpkgs.legacyPackages.${system};
+          hPkgs = pkgs.haskell.packages.ghc98;
+        in pkgs.mkShell {
+          buildInputs = [
+            hPkgs.ghc
+            pkgs.stack
+            hPkgs.haskell-language-server
+            hPkgs.fourmolu
+          ];
+        };
+    in {
+      devShells.aarch64-darwin.default = mkShell "aarch64-darwin";
+      devShells.x86_64-linux.default = mkShell "x86_64-linux";
+    };
 }
