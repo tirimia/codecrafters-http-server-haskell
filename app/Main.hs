@@ -7,6 +7,7 @@ import qualified Data.ByteString.Char8 as BC
 import Network.Socket
 import Network.Socket.ByteString (recv, send)
 import Request (rLine, rTarget, runParseRequest)
+import Response (echo)
 import System.IO (BufferMode (NoBuffering), hSetBuffering, stderr, stdout)
 
 fourOhFour :: BC.ByteString
@@ -39,6 +40,7 @@ main = do
           Left _ -> fourOhFour
           Right request -> case rTarget (rLine request) of
             "/" -> "HTTP/1.1 200 OK" <> "\r\n" <> "\r\n"
+            path | "/echo/" `BC.isPrefixOf` path -> echo $ BC.drop 6 path
             _ -> fourOhFour
     _ <- send clientSocket resp
 
