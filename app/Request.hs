@@ -1,35 +1,18 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Request (parseRequest) where
+module Request (runParseRequest, Request (..), RequestLine (..), Verb (..), HttpVersion (..), Headers) where
 
-import qualified Data.ByteString.Char8 as BC
+import Control.Applicative (many, (<|>))
+import qualified Data.ByteString as BC
+import Data.Char (ord)
+import Data.Functor (($>))
+import Data.Word (Word8)
+import Parser (Error (..), Parser (..), crlf, space, string, takeRest, takeWhile, untilCRLF, untilSpace)
+import Prelude hiding (takeWhile)
 
-bail :: String -> Either ParseError b
-bail = Left . ParseError
+data Verb = GET | POST deriving (Show, Eq)
 
-crlf :: BC.ByteString
-crlf = "\r\n"
-
-doubleCrlf :: BC.ByteString
-doubleCrlf = crlf <> crlf
-
-newtype ParseError = ParseError String
-  deriving (Show)
-
-data Verb = GET | POST
-  deriving (Show)
-
-parseVerb :: BC.ByteString -> Either ParseError Verb
-parseVerb "GET" = Right GET
-parseVerb "POST" = Right POST
-parseVerb other = bail $ "Unknown verb '" <> BC.unpack other <> "'"
-
-data HttpVersion = HTTP_1_1
-  deriving (Show)
-
-parseVersion :: BC.ByteString -> Either ParseError HttpVersion
-parseVersion "HTTP/1.1" = Right HTTP_1_1
-parseVersion other = bail $ "Unsupported HTTP version: " <> BC.unpack other
+data HttpVersion = HTTP_1_1 deriving (Show, Eq)
 
 data RequestLine = RequestLine
   { rVerb :: Verb,
@@ -37,16 +20,6 @@ data RequestLine = RequestLine
     rVersion :: HttpVersion
   }
   deriving (Show)
-
-splitRequestLine :: BC.ByteString -> Either ParseError (BC.ByteString, BC.ByteString, BC.ByteString)
-splitRequestLine line = case BC.words line of
-  [a, b, c] -> Right (a, b, c)
-  xs -> bail $ "Expected 3 parts to the request line, got: " <> show (length xs)
-
-parseRequestLine :: BC.ByteString -> Either ParseError RequestLine
-parseRequestLine line = do
-  (verb, target, version) <- splitRequestLine line
-  RequestLine <$> parseVerb verb <*> pure target <*> parseVersion version
 
 type Headers = [(BC.ByteString, BC.ByteString)]
 
@@ -57,31 +30,42 @@ data Request = Request
   }
   deriving (Show)
 
-splitOn :: BC.ByteString -> BC.ByteString -> (BC.ByteString, BC.ByteString)
-splitOn sep bytes = (a, BC.drop (BC.length sep) b)
-  where
-    (a, b) = BC.breakSubstring sep bytes
+failWith :: String -> Parser a
+failWith e = Parser $ \_ -> Left [Error e]
 
-splitBy :: BC.ByteString -> BC.ByteString -> [BC.ByteString]
-splitBy sep bytes = a : if BC.null b then [] else splitBy sep b
-  where
-    (a, b) = splitOn sep bytes
+verbParser :: Parser Verb
+verbParser =
+  (string "GET" $> GET)
+    <|> (string "POST" $> POST)
+    <|> failWith "Unsupported verb"
 
-parseHeaders :: BC.ByteString -> Either ParseError Headers
-parseHeaders "" = Right mempty
-parseHeaders bytes = mapM parseHeader headers
-  where
-    headers = splitBy crlf bytes
-    parseHeader h = case splitOn ": " h of
-      (_, v) | BC.null v -> bail $ "Header '" <> BC.unpack h <> "' missing separator ': '"
-      (k, v) -> Right (k, v)
+versionParser :: Parser HttpVersion
+versionParser =
+  (string "HTTP/1.1" $> HTTP_1_1)
+    <|> failWith "Unsupported HTTP version"
 
-parseRequest :: BC.ByteString -> Either ParseError Request
-parseRequest bytes =
-  Request
-    <$> parseRequestLine requestLine
-    <*> parseHeaders rawHeaders
-    <*> pure body
-  where
-    (header, body) = splitOn doubleCrlf bytes
-    (requestLine, rawHeaders) = splitOn crlf header
+requestLineParser :: Parser RequestLine
+requestLineParser =
+  RequestLine <$> verbParser <*> (space *> untilSpace) <*> (versionParser <* crlf)
+
+colon :: Word8
+colon = fromIntegral . ord $ ':'
+
+headerParser :: Parser (BC.ByteString, BC.ByteString)
+headerParser = do
+  key <- takeWhile (/= colon)
+  _ <- string ": "
+  value <- untilCRLF
+  pure (key, value)
+
+headersParser :: Parser Headers
+headersParser = many headerParser
+
+requestParser :: Parser Request
+requestParser =
+  Request <$> requestLineParser <*> headersParser <*> (crlf *> takeRest)
+
+runParseRequest :: BC.ByteString -> Either String Request
+runParseRequest bytes = case runParser requestParser bytes of
+  Left errs -> Left $ show errs
+  Right (req, _) -> Right req

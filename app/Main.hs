@@ -6,8 +6,11 @@ import Control.Monad (forever)
 import qualified Data.ByteString.Char8 as BC
 import Network.Socket
 import Network.Socket.ByteString (recv, send)
-import Request (parseRequest)
+import Request (rLine, rTarget, runParseRequest)
 import System.IO (BufferMode (NoBuffering), hSetBuffering, stderr, stdout)
+
+fourOhFour :: BC.ByteString
+fourOhFour = "HTTP/1.1 404 Not Found\r\n\r\n"
 
 main :: IO ()
 main = do
@@ -30,7 +33,12 @@ main = do
     (clientSocket, clientAddr) <- accept serverSocket
     BC.putStrLn $ "Accepted connection from " <> BC.pack (show clientAddr) <> "."
     b <- recv clientSocket 4096
-    let req = parseRequest b
-    _ <- send clientSocket $ "HTTP/1.1 200 OK" <> "\r\n" <> "\r\n"
+    let req = runParseRequest b
+    let resp = case req of
+          Left _ -> fourOhFour
+          Right request -> case rTarget (rLine request) of
+            "/" -> "HTTP/1.1 200 OK" <> "\r\n" <> "\r\n"
+            _ -> fourOhFour
+    _ <- send clientSocket resp
 
     close clientSocket
