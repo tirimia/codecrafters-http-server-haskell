@@ -9,7 +9,7 @@ import qualified Data.ByteString.Char8 as BC
 import Network.Socket
 import Network.Socket.ByteString (recv, send)
 import Request (Verb (..), getHeader, rBody, rHeaders, rLine, rTarget, rVerb, runParseRequest, shouldKeepAlive, wantsGzip)
-import Response (Response, echo, fourOhFour, getFile, gzip, index, postFile, serialize)
+import Response (Response, closing, echo, fourOhFour, getFile, gzip, index, postFile, serialize)
 import System.Environment
 import System.IO (BufferMode (NoBuffering), hSetBuffering, stderr, stdout)
 
@@ -53,7 +53,7 @@ handleConn clientSocket dir = handleRequest
               _ <- send clientSocket $ serialize fourOhFour
               close clientSocket
             Right request -> do
-              resp <- catch (maybeGzip request <$> route request) errorHandler
+              resp <- catch (maybeClose request . maybeGzip request <$> route request) errorHandler
               _ <- send clientSocket $ serialize resp
               if shouldKeepAlive request then handleRequest else close clientSocket
     route request = case (rVerb $ rLine request, rTarget $ rLine request) of
@@ -71,3 +71,4 @@ handleConn clientSocket dir = handleRequest
     errorHandler :: SomeException -> IO Response
     errorHandler _ = pure fourOhFour
     maybeGzip req = if wantsGzip req then gzip else id
+    maybeClose req = if shouldKeepAlive req then id else closing

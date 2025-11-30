@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Response (Response, echo, getFile, gzip, postFile, fourOhFour, index, serialize) where
+module Response (Response, closing, echo, getFile, gzip, postFile, fourOhFour, index, serialize) where
 
 import qualified Codec.Compression.GZip as GZip
 import qualified Data.ByteString.Char8 as BC
@@ -38,6 +38,10 @@ gzip (Response line (Headers hs) body) =
         ("content-length", BC.pack . show $ BC.length compressedBody)
       ]
     filteredHeaders = filter ((`notElem` ["content-encoding", "content-length"]) . fst) hs
+
+closing :: Response -> Response
+closing (Response line (Headers hs) body) =
+  Response line (Headers $ ("connection", "close") : hs) body
 
 -- TODO: look into lenses to use echo and modify the content-type
 getFile :: String -> String -> IO Response
