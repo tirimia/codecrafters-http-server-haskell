@@ -1,7 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Response (echo, fourOhFour, index, serialize) where
+module Response (echo, files, fourOhFour, index, serialize) where
 
+import Control.Exception
 import qualified Data.ByteString.Char8 as BC
 import Request (Headers (..), HttpVersion (..))
 
@@ -25,6 +26,20 @@ echo s =
     (ResponseLine HTTP_1_1 OK)
     (Headers [("Content-Type", "text/plain"), ("Content-Length", BC.pack $ show $ BC.length s)])
     s
+
+-- TODO: look into lenses to use echo and modify the content-type
+files :: String -> String -> IO Response
+files file dir = catch (replyWith $ dir <> file) handler
+  where
+    handler :: SomeException -> IO Response
+    handler e = pure $ fourOhFour
+    replyWith path = do
+      content <- BC.readFile path
+      pure $
+        Response
+          (ResponseLine HTTP_1_1 OK)
+          (Headers [("Content-Type", "application/octet-stream"), ("Content-Length", BC.pack $ show $ BC.length content)])
+          content
 
 class Serialize a where
   serialize :: a -> BC.ByteString
