@@ -24,6 +24,7 @@ dependencies:
   - base >= 4.19 && < 5
   - network # establish a simple TCP network
   - bytestring # useful to send bytes over the network
+  - zlib
 
 executables:
   codecrafters-http-server-exe:

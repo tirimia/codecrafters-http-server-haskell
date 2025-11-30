@@ -2,7 +2,9 @@
 
 module Response (Response, echo, getFile, gzip, postFile, fourOhFour, index, serialize) where
 
+import qualified Codec.Compression.GZip as GZip
 import qualified Data.ByteString.Char8 as BC
+import qualified Data.ByteString.Lazy as BCL
 import Request (Headers (..), HttpVersion (..))
 
 index :: Response
@@ -23,14 +25,19 @@ echo :: BC.ByteString -> Response
 echo s =
   Response
     (ResponseLine HTTP_1_1 OK)
-    (Headers [("Content-Type", "text/plain"), ("Content-Length", BC.pack $ show $ BC.length s)])
+    (Headers [("content-type", "text/plain"), ("content-length", BC.pack $ show $ BC.length s)])
     s
 
 gzip :: Response -> Response
 gzip (Response line (Headers hs) body) =
-  Response line (Headers $ (headerName, "gzip") : filter ((/= headerName) . fst) hs) body
+  Response line (Headers $ newHeaders ++ filteredHeaders) compressedBody
   where
-    headerName = "content-encoding"
+    compressedBody = BCL.toStrict $ GZip.compress (BCL.fromStrict body)
+    newHeaders =
+      [ ("content-encoding", "gzip"),
+        ("content-length", BC.pack . show $ BC.length compressedBody)
+      ]
+    filteredHeaders = filter ((`notElem` ["content-encoding", "content-length"]) . fst) hs
 
 -- TODO: look into lenses to use echo and modify the content-type
 getFile :: String -> String -> IO Response
@@ -41,7 +48,7 @@ getFile file dir = replyWith $ dir <> file
       pure $
         Response
           (ResponseLine HTTP_1_1 OK)
-          (Headers [("Content-Type", "application/octet-stream"), ("Content-Length", BC.pack $ show $ BC.length content)])
+          (Headers [("content-type", "application/octet-stream"), ("content-length", BC.pack $ show $ BC.length content)])
           content
 
 postFile :: BC.ByteString -> String -> String -> IO Response
