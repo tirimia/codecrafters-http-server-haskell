@@ -6,6 +6,7 @@ import Control.Concurrent (forkIO)
 import Control.Exception (SomeException, catch)
 import Control.Monad (forever)
 import qualified Data.ByteString.Char8 as BC
+import Data.Functor ((<&>))
 import Network.Socket
 import Network.Socket.ByteString (recv, send)
 import Request (Verb (..), getHeader, rBody, rHeaders, rLine, rTarget, rVerb, runParseRequest, shouldKeepAlive, wantsGzip)
@@ -53,7 +54,7 @@ handleConn clientSocket dir = handleRequest
               _ <- send clientSocket $ serialize fourOhFour
               close clientSocket
             Right request -> do
-              resp <- catch (maybeClose request . maybeGzip request <$> route request) errorHandler
+              resp <- catch (route request <&> maybeGzip request . maybeClose request) errorHandler
               _ <- send clientSocket $ serialize resp
               if shouldKeepAlive request then handleRequest else close clientSocket
     route request = case (rVerb $ rLine request, rTarget $ rLine request) of
