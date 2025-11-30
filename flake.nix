@@ -15,6 +15,7 @@
             pkgs.stack
             hPkgs.haskell-language-server
             hPkgs.fourmolu
+            pkgs.vegeta
           ];
         };
     in {
