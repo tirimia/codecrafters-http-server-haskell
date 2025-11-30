@@ -7,6 +7,7 @@ import qualified Data.ByteString as BC
 import qualified Data.ByteString.Char8 as BC8
 import Data.Char (ord, toLower)
 import Data.Functor (($>))
+import Data.Maybe (fromMaybe, isJust)
 import Data.Word (Word8)
 import Parser (Error (..), Parser (..), crlf, space, string, takeRest, takeWhile, untilCRLF, untilSpace)
 import Prelude hiding (takeWhile)
@@ -53,12 +54,12 @@ requestLineParser :: Parser RequestLine
 requestLineParser =
   RequestLine <$> verbParser <*> (space *> untilSpace) <*> (versionParser <* crlf)
 
-colon :: Word8
-colon = fromIntegral . ord $ ':'
+w8char :: Char -> Word8
+w8char = fromIntegral . ord
 
 headerParser :: Parser (BC.ByteString, BC.ByteString)
 headerParser = do
-  key <- BC8.map toLower <$> takeWhile (/= colon)
+  key <- BC8.map toLower <$> takeWhile (/= w8char ':')
   _ <- string ": "
   value <- untilCRLF
   pure (key, value)
@@ -75,5 +76,16 @@ runParseRequest bytes = case runParser requestParser bytes of
   Left errs -> Left $ show errs
   Right (req, _) -> Right req
 
+headerValueListParser :: Parser [BC.ByteString]
+headerValueListParser = many value
+  where
+    value = do
+      v <- takeWhile (/= w8char ',')
+      _ <- string ", "
+      pure v
+
 wantsGzip :: Request -> Bool
-wantsGzip (Request _ (Headers hs) _) = ("accept-encoding", "gzip") `elem` hs
+wantsGzip (Request _ hs _) =
+  maybe False (elem "gzip") (toMaybe . runParser headerValueListParser =<< getHeader "accept-encoding" hs)
+  where
+    toMaybe = either (const Nothing) (Just . fst)
