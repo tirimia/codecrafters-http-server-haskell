@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Request (runParseRequest, Request (..), RequestLine (..), Verb (..), HttpVersion (..), Headers (..), getHeader, wantsGzip) where
+module Request (runParseRequest, Request (..), RequestLine (..), Verb (..), HttpVersion (..), Headers (..), getHeader, wantsGzip, shouldKeepAlive) where
 
 import Control.Applicative (many, (<|>))
 import qualified Data.ByteString as BC
@@ -85,3 +85,7 @@ wantsGzip (Request _ hs _) =
   maybe False (elem "gzip") (toMaybe . runParser headerValueListParser =<< getHeader "accept-encoding" hs)
   where
     toMaybe = either (const Nothing) (Just . fst)
+
+shouldKeepAlive :: Request -> Bool
+shouldKeepAlive (Request (RequestLine _ _ HTTP_1_1) hs _) =
+  Just "close" /= getHeader "connection" hs

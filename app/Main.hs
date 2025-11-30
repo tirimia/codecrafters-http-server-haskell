@@ -8,7 +8,7 @@ import Control.Monad (forever)
 import qualified Data.ByteString.Char8 as BC
 import Network.Socket
 import Network.Socket.ByteString (recv, send)
-import Request (Verb (..), getHeader, rBody, rHeaders, rLine, rTarget, rVerb, runParseRequest, wantsGzip)
+import Request (Verb (..), getHeader, rBody, rHeaders, rLine, rTarget, rVerb, runParseRequest, shouldKeepAlive, wantsGzip)
 import Response (Response, echo, fourOhFour, getFile, gzip, index, postFile, serialize)
 import System.Environment
 import System.IO (BufferMode (NoBuffering), hSetBuffering, stderr, stdout)
@@ -41,14 +41,21 @@ main = do
     forkIO $ handleConn clientSocket dir
 
 handleConn :: Socket -> Maybe String -> IO ()
-handleConn clientSocket dir = do
-  b <- recv clientSocket 4096
-  resp <- case runParseRequest b of
-    Left _ -> pure fourOhFour
-    Right request -> catch (maybeGzip request <$> route request) errorHandler
-  _ <- send clientSocket $ serialize resp
-  close clientSocket
+handleConn clientSocket dir = handleRequest
   where
+    handleRequest = do
+      b <- recv clientSocket 4096
+      if BC.null b
+        then close clientSocket
+        else do
+          case runParseRequest b of
+            Left _ -> do
+              _ <- send clientSocket $ serialize fourOhFour
+              close clientSocket
+            Right request -> do
+              resp <- catch (maybeGzip request <$> route request) errorHandler
+              _ <- send clientSocket $ serialize resp
+              if shouldKeepAlive request then handleRequest else close clientSocket
     route request = case (rVerb $ rLine request, rTarget $ rLine request) of
       (GET, "/") -> pure index
       (GET, "/user-agent") -> pure $ maybe fourOhFour echo (getHeader "user-agent" (rHeaders request))
