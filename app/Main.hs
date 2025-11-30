@@ -6,12 +6,9 @@ import Control.Monad (forever)
 import qualified Data.ByteString.Char8 as BC
 import Network.Socket
 import Network.Socket.ByteString (recv, send)
-import Request (rLine, rTarget, runParseRequest)
-import Response (echo)
+import Request (getHeader, rHeaders, rLine, rTarget, runParseRequest)
+import Response (echo, fourOhFour, index, serialize)
 import System.IO (BufferMode (NoBuffering), hSetBuffering, stderr, stdout)
-
-fourOhFour :: BC.ByteString
-fourOhFour = "HTTP/1.1 404 Not Found\r\n\r\n"
 
 main :: IO ()
 main = do
@@ -39,9 +36,10 @@ main = do
     let resp = case req of
           Left _ -> fourOhFour
           Right request -> case rTarget (rLine request) of
-            "/" -> "HTTP/1.1 200 OK" <> "\r\n" <> "\r\n"
+            "/" -> index
+            "/user-agent" -> maybe fourOhFour echo (getHeader "user-agent" (rHeaders request))
             path | "/echo/" `BC.isPrefixOf` path -> echo $ BC.drop 6 path
             _ -> fourOhFour
-    _ <- send clientSocket resp
+    _ <- send clientSocket $ serialize resp
 
     close clientSocket

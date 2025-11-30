@@ -1,10 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Request (runParseRequest, Request (..), RequestLine (..), Verb (..), HttpVersion (..), Headers) where
+module Request (runParseRequest, Request (..), RequestLine (..), Verb (..), HttpVersion (..), Headers (..), getHeader) where
 
 import Control.Applicative (many, (<|>))
 import qualified Data.ByteString as BC
-import Data.Char (ord)
+import qualified Data.ByteString.Char8 as BC8
+import Data.Char (ord, toLower)
 import Data.Functor (($>))
 import Data.Word (Word8)
 import Parser (Error (..), Parser (..), crlf, space, string, takeRest, takeWhile, untilCRLF, untilSpace)
@@ -21,7 +22,11 @@ data RequestLine = RequestLine
   }
   deriving (Show)
 
-type Headers = [(BC.ByteString, BC.ByteString)]
+newtype Headers = Headers [(BC.ByteString, BC.ByteString)]
+  deriving (Show)
+
+getHeader :: BC.ByteString -> Headers -> Maybe BC.ByteString
+getHeader header (Headers hs) = lookup header hs
 
 data Request = Request
   { rLine :: !RequestLine,
@@ -53,13 +58,13 @@ colon = fromIntegral . ord $ ':'
 
 headerParser :: Parser (BC.ByteString, BC.ByteString)
 headerParser = do
-  key <- takeWhile (/= colon)
+  key <- BC8.map toLower <$> takeWhile (/= colon)
   _ <- string ": "
   value <- untilCRLF
   pure (key, value)
 
 headersParser :: Parser Headers
-headersParser = many headerParser
+headersParser = Headers <$> many headerParser
 
 requestParser :: Parser Request
 requestParser =
