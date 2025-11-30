@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Request (runParseRequest, Request (..), RequestLine (..), Verb (..), HttpVersion (..), Headers (..), getHeader) where
+module Request (runParseRequest, Request (..), RequestLine (..), Verb (..), HttpVersion (..), Headers (..), getHeader, wantsGzip) where
 
 import Control.Applicative (many, (<|>))
 import qualified Data.ByteString as BC
@@ -74,3 +74,6 @@ runParseRequest :: BC.ByteString -> Either String Request
 runParseRequest bytes = case runParser requestParser bytes of
   Left errs -> Left $ show errs
   Right (req, _) -> Right req
+
+wantsGzip :: Request -> Bool
+wantsGzip (Request _ (Headers hs) _) = ("accept-encoding", "gzip") `elem` hs

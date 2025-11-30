@@ -1,8 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Response (Response, echo, getFile, postFile, fourOhFour, index, serialize) where
+module Response (Response, echo, getFile, gzip, postFile, fourOhFour, index, serialize) where
 
-import Control.Exception
 import qualified Data.ByteString.Char8 as BC
 import Request (Headers (..), HttpVersion (..))
 
@@ -26,6 +25,12 @@ echo s =
     (ResponseLine HTTP_1_1 OK)
     (Headers [("Content-Type", "text/plain"), ("Content-Length", BC.pack $ show $ BC.length s)])
     s
+
+gzip :: Response -> Response
+gzip (Response line (Headers hs) body) =
+  Response line (Headers $ (headerName, "gzip") : filter ((/= headerName) . fst) hs) body
+  where
+    headerName = "content-encoding"
 
 -- TODO: look into lenses to use echo and modify the content-type
 getFile :: String -> String -> IO Response

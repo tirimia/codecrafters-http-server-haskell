@@ -8,8 +8,8 @@ import Control.Monad (forever)
 import qualified Data.ByteString.Char8 as BC
 import Network.Socket
 import Network.Socket.ByteString (recv, send)
-import Request (Verb (..), getHeader, rBody, rHeaders, rLine, rTarget, rVerb, runParseRequest)
-import Response (Response, echo, fourOhFour, getFile, index, postFile, serialize)
+import Request (Verb (..), getHeader, rBody, rHeaders, rLine, rTarget, rVerb, runParseRequest, wantsGzip)
+import Response (Response, echo, fourOhFour, getFile, gzip, index, postFile, serialize)
 import System.Environment
 import System.IO (BufferMode (NoBuffering), hSetBuffering, stderr, stdout)
 
@@ -45,7 +45,7 @@ handleConn clientSocket dir = do
   b <- recv clientSocket 4096
   resp <- case runParseRequest b of
     Left _ -> pure fourOhFour
-    Right request -> catch (route request) errorHandler
+    Right request -> catch (maybeGzip request <$> route request) errorHandler
   _ <- send clientSocket $ serialize resp
   close clientSocket
   where
@@ -63,3 +63,4 @@ handleConn clientSocket dir = do
       _ -> pure fourOhFour
     errorHandler :: SomeException -> IO Response
     errorHandler _ = pure fourOhFour
+    maybeGzip req = if wantsGzip req then gzip else id
