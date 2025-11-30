@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Parser (Parser (..), Error (..), crlf, space, string, untilCRLF, untilSpace, takeRest, takeWhile) where
+module Parser (Parser (..), Error (..), crlf, space, string, untilCRLF, untilSpace, takeRest, takeWhile, sepBy) where
 
 import Control.Applicative
 import qualified Data.ByteString as BC
@@ -87,3 +87,8 @@ untilSpace = untilString " "
 
 takeRest :: Parser BC.ByteString
 takeRest = Parser $ \input -> Right (input, BC.empty)
+
+sepBy :: Parser a -> Parser sep -> Parser [a]
+sepBy p sep = (p `sepBy'` sep) <|> pure []
+  where
+    sepBy' p' sep' = (:) <$> p' <*> many (sep' *> p')

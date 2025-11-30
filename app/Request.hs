@@ -7,9 +7,8 @@ import qualified Data.ByteString as BC
 import qualified Data.ByteString.Char8 as BC8
 import Data.Char (ord, toLower)
 import Data.Functor (($>))
-import Data.Maybe (fromMaybe, isJust)
 import Data.Word (Word8)
-import Parser (Error (..), Parser (..), crlf, space, string, takeRest, takeWhile, untilCRLF, untilSpace)
+import Parser (Error (..), Parser (..), crlf, sepBy, space, string, takeRest, takeWhile, untilCRLF, untilSpace)
 import Prelude hiding (takeWhile)
 
 data Verb = GET | POST deriving (Show, Eq)
@@ -77,12 +76,9 @@ runParseRequest bytes = case runParser requestParser bytes of
   Right (req, _) -> Right req
 
 headerValueListParser :: Parser [BC.ByteString]
-headerValueListParser = many value
+headerValueListParser = sepBy value (string ", ")
   where
-    value = do
-      v <- takeWhile (/= w8char ',')
-      _ <- string ", "
-      pure v
+    value = takeWhile (\b -> b /= w8char ',' && b /= w8char ' ')
 
 wantsGzip :: Request -> Bool
 wantsGzip (Request _ hs _) =
