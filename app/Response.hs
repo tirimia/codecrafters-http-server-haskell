@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Response (echo, files, fourOhFour, index, serialize) where
+module Response (Response, echo, getFile, postFile, fourOhFour, index, serialize) where
 
 import Control.Exception
 import qualified Data.ByteString.Char8 as BC
@@ -28,11 +28,9 @@ echo s =
     s
 
 -- TODO: look into lenses to use echo and modify the content-type
-files :: String -> String -> IO Response
-files file dir = catch (replyWith $ dir <> file) handler
+getFile :: String -> String -> IO Response
+getFile file dir = replyWith $ dir <> file
   where
-    handler :: SomeException -> IO Response
-    handler e = pure $ fourOhFour
     replyWith path = do
       content <- BC.readFile path
       pure $
@@ -41,10 +39,19 @@ files file dir = catch (replyWith $ dir <> file) handler
           (Headers [("Content-Type", "application/octet-stream"), ("Content-Length", BC.pack $ show $ BC.length content)])
           content
 
+postFile :: BC.ByteString -> String -> String -> IO Response
+postFile content file dir = do
+  BC.writeFile (dir <> file) content
+  pure $
+    Response
+      (ResponseLine HTTP_1_1 Created)
+      (Headers mempty)
+      mempty
+
 class Serialize a where
   serialize :: a -> BC.ByteString
 
-data Code = NotFound | OK
+data Code = OK | Created | NotFound
   deriving (Show)
 
 instance Serialize HttpVersion where
@@ -54,6 +61,7 @@ instance Serialize HttpVersion where
 instance Serialize Code where
   serialize code = case code of
     OK -> "200 OK"
+    Created -> "201 Created"
     NotFound -> "404 Not Found"
 
 instance Serialize Headers where
