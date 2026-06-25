@@ -1,0 +1,27 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.37.0.
+--
+-- see: https://github.com/sol/hpack
+
+name:           codecrafters-http-server
+version:        0.1.0.0
+license:        BSD3
+build-type:     Simple
+
+executable codecrafters-http-server-exe
+  main-is: Main.hs
+  other-modules:
+      Parser
+      Request
+      Response
+      Paths_codecrafters_http_server
+  hs-source-dirs:
+      app
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      base >=4.19 && <5
+    , bytestring
+    , network
+    , zlib
+  default-language: Haskell2010

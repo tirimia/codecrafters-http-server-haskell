@@ -16,76 +16,78 @@ data Verb = GET | POST deriving (Show, Eq)
 data HttpVersion = HTTP_1_1 deriving (Show, Eq)
 
 data RequestLine = RequestLine
-  { rVerb :: Verb,
-    rTarget :: BC.ByteString,
-    rVersion :: HttpVersion
-  }
-  deriving (Show)
+        { rVerb :: Verb
+        , rTarget :: BC.ByteString
+        , rVersion :: HttpVersion
+        }
+        deriving (Show)
+
+-- >>> RequestLine GET "/boo.html" HTTP_1_1
 
 newtype Headers = Headers [(BC.ByteString, BC.ByteString)]
-  deriving (Show)
+        deriving (Show)
 
 getHeader :: BC.ByteString -> Headers -> Maybe BC.ByteString
 getHeader header (Headers hs) = lookup header hs
 
 data Request = Request
-  { rLine :: !RequestLine,
-    rHeaders :: !Headers,
-    rBody :: !BC.ByteString
-  }
-  deriving (Show)
+        { rLine :: !RequestLine
+        , rHeaders :: !Headers
+        , rBody :: !BC.ByteString
+        }
+        deriving (Show)
 
 failWith :: String -> Parser a
 failWith e = Parser $ \_ -> Left [Error e]
 
 verbParser :: Parser Verb
 verbParser =
-  (string "GET" $> GET)
-    <|> (string "POST" $> POST)
-    <|> failWith "Unsupported verb"
+        (string "GET" $> GET)
+                <|> (string "POST" $> POST)
+                <|> failWith "Unsupported verb"
 
 versionParser :: Parser HttpVersion
 versionParser =
-  (string "HTTP/1.1" $> HTTP_1_1)
-    <|> failWith "Unsupported HTTP version"
+        (string "HTTP/1.1" $> HTTP_1_1)
+                <|> failWith "Unsupported HTTP version"
 
 requestLineParser :: Parser RequestLine
 requestLineParser =
-  RequestLine <$> verbParser <*> (space *> untilSpace) <*> (versionParser <* crlf)
+        RequestLine <$> verbParser <*> (space *> untilSpace) <*> (versionParser <* crlf)
 
 w8char :: Char -> Word8
 w8char = fromIntegral . ord
 
 headerParser :: Parser (BC.ByteString, BC.ByteString)
 headerParser = do
-  key <- BC8.map toLower <$> takeWhile (/= w8char ':')
-  _ <- string ": "
-  value <- untilCRLF
-  pure (key, value)
+        key <- BC8.map toLower <$> takeWhile (/= w8char ':')
+        _ <- string ": "
+        value <- untilCRLF
+        pure (key, value)
 
 headersParser :: Parser Headers
 headersParser = Headers <$> many headerParser
 
 requestParser :: Parser Request
 requestParser =
-  Request <$> requestLineParser <*> headersParser <*> (crlf *> takeRest)
+        Request <$> requestLineParser <*> headersParser <*> (crlf *> takeRest)
 
 runParseRequest :: BC.ByteString -> Either String Request
 runParseRequest bytes = case runParser requestParser bytes of
-  Left errs -> Left $ show errs
-  Right (req, _) -> Right req
+        Left errs -> Left $ show errs
+        Right (req, _) -> Right req
 
 headerValueListParser :: Parser [BC.ByteString]
 headerValueListParser = sepBy value (string ", ")
-  where
-    value = takeWhile (\b -> b /= w8char ',' && b /= w8char ' ')
+    where
+        value = takeWhile (\b -> b /= w8char ',' && b /= w8char ' ')
 
 wantsGzip :: Request -> Bool
 wantsGzip (Request _ hs _) =
-  maybe False (elem "gzip") (toMaybe . runParser headerValueListParser =<< getHeader "accept-encoding" hs)
-  where
-    toMaybe = either (const Nothing) (Just . fst)
+        maybe False (elem "gzip") (toMaybe . runParser headerValueListParser =<< getHeader "accept-encoding" hs)
+    where
+        toMaybe = either (const Nothing) (Just . fst)
 
 shouldKeepAlive :: Request -> Bool
-shouldKeepAlive (Request (RequestLine _ _ HTTP_1_1) hs _) =
-  Just "close" /= getHeader "connection" hs
+shouldKeepAlive (Request _ hs _) =
+        Just "close" /= getHeader "connection" hs

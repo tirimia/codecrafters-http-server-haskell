@@ -69,7 +69,7 @@ takeWhile predicate = Parser $ \input ->
 
 string :: BC.ByteString -> Parser BC.ByteString
 string target = Parser $ \input ->
-  if BC.isPrefixOf target input
+  if target `BC.isPrefixOf` input
     then Right (target, BC.drop (BC.length target) input)
     else Left [Error $ "Could not find " <> show target]
 
